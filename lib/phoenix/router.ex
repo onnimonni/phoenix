@@ -469,7 +469,9 @@ defmodule Phoenix.Router do
         %{method: method, path_info: path_info, host: host} = conn = prepare(conn)
         decoded = Enum.map(path_info, &URI.decode/1)
 
-        case __match_route__(method, decoded, host) do
+        # Called through apply/3 so the type checker does not destructure the
+        # union of every route's return value, which is slow for large routers
+        case apply(__MODULE__, :__match_route__, [method, decoded, host]) do
           {metadata, prepare, pipeline, plug_opts} ->
             Phoenix.Router.__call__(conn, metadata, prepare, pipeline, plug_opts)
 
@@ -551,7 +553,9 @@ defmodule Phoenix.Router do
 
     quote do
       @doc false
-      def __routes__, do: unquote(Macro.escape(routes))
+      # Stored as a binary: large literals are slow to compile and type check,
+      # and the routes are only read for introspection
+      def __routes__, do: :erlang.binary_to_term(unquote(:erlang.term_to_binary(routes)))
 
       @doc false
       def __checks__, do: unquote({:__block__, [], checks})
